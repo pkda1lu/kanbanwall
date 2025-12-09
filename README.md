@@ -57,5 +57,5 @@ curl -X POST http://localhost:3000/api/boards/<boardId>/tasks \
 - UI/канбан в браузере:  
   ![UI](docs/screenshots/Screenshot%202025-12-09%20165521.png)
 - Api:  
-  ![Api](docs/screenshots/Screenshot 2025-12-09 165707.png)
+  ![Api](docs/screenshots/Screenshot%2025-12-09%165707.png)
 
