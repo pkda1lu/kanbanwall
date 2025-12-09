@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Мини-канбан API</title>
+    <style>
+      :root {
+        font-family: system-ui, sans-serif;
+        color: #0f172a;
+        background: #f8fafc;
+      }
+      body {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 32px;
+        line-height: 1.6;
+      }
+      h1,
+      h2,
+      h3 {
+        margin: 0 0 8px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+      .card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 16px;
+        box-shadow: 0 4px 12px rgb(0 0 0 / 0.04);
+      }
+      .stack {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      label {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-weight: 600;
+        font-size: 14px;
+      }
+      input,
+      textarea,
+      select,
+      button {
+        font: inherit;
+      }
+      input,
+      textarea,
+      select {
+        padding: 8px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #fff;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      textarea {
+        min-height: 72px;
+        resize: vertical;
+      }
+      button {
+        background: #0f172a;
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 14px;
+        cursor: pointer;
+        transition: transform 120ms ease, box-shadow 120ms ease;
+      }
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 20px rgb(0 0 0 / 0.12);
+      }
+      .kanban {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+      }
+      .column {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 12px;
+        min-height: 220px;
+      }
+      .column h3 {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 16px;
+        margin-bottom: 8px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 2px 10px;
+        border-radius: 999px;
+        background: #e2e8f0;
+        color: #0f172a;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .task {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 10px;
+        margin-bottom: 10px;
+        background: #f8fafc;
+      }
+      .task-title {
+        font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .task small {
+        color: #475569;
+      }
+      .muted {
+        color: #475569;
+      }
+      .actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 6px;
+      }
+      .pill {
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        background: #e2e8f0;
+      }
+      .empty {
+        color: #94a3b8;
+        font-style: italic;
+      }
+      .error {
+        color: #b91c1c;
+        font-weight: 600;
+      }
+      .success {
+        color: #15803d;
+        font-weight: 600;
+      }
+      .divider {
+        height: 1px;
+        background: #e2e8f0;
+        margin: 12px 0;
+      }
+      @media (max-width: 900px) {
+        .kanban {
+          grid-template-columns: 1fr;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Мини-канбан на Express.js</h1>
+    <p class="muted">
+      Полноценный тестовый стенд: создавайте доски, добавляйте задачи, меняйте
+      статус и удаляйте элементы. Все операции идут через REST API.
+    </p>
+
+    <div id="message"></div>
+
+    <div class="card">
+      <h2>API шпаргалка</h2>
+      <p class="muted">
+        Текущие маршруты: GET/POST/PUT/DELETE. Проверьте их в Postman или через
+        curl, либо пользуйтесь формами ниже.
+      </p>
+      <ul>
+        <li>GET <code>/api/boards</code> — список досок</li>
+        <li>
+          GET <code>/api/boards/:boardId?withTasks=true</code> — доска с задачами
+        </li>
+        <li>POST <code>/api/boards</code> — создать доску</li>
+        <li>POST <code>/api/boards/:boardId/tasks</code> — добавить задачу</li>
+        <li>PUT <code>/api/boards/:boardId/tasks/:taskId</code> — обновить</li>
+        <li>DELETE <code>/api/boards/:boardId/tasks/:taskId</code> — удалить</li>
+      </ul>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Создать доску</h2>
+        <form id="boardForm" class="stack">
+          <label>
+            Название
+            <input required name="name" placeholder="Учёба" />
+          </label>
+          <label>
+            Описание
+            <textarea name="description" placeholder="Подготовка к экзамену"></textarea>
+          </label>
+          <button type="submit">Создать доску</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Создать задачу</h2>
+        <form id="taskForm" class="stack">
+          <label>
+            Заголовок
+            <input required name="title" placeholder="Разобрать middleware" />
+          </label>
+          <label>
+            Статус
+            <select name="status">
+              <option value="todo">todo</option>
+              <option value="in-progress">in-progress</option>
+              <option value="done">done</option>
+            </select>
+          </label>
+          <label>
+            Описание
+            <textarea name="description" placeholder="Короткий текст (необязательно)"></textarea>
+          </label>
+          <button type="submit">Добавить задачу</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Выбор доски</h2>
+        <div class="stack">
+          <label style="flex: 1">
+            Активная доска
+            <select id="boardSelect"></select>
+          </label>
+        </div>
+        <div class="divider"></div>
+        <div id="boardMeta" class="muted"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Задачи</h2>
+      <div id="kanban" class="kanban"></div>
+    </div>
+
+    <script>
+      const statuses = ['todo', 'in-progress', 'done'];
+      const statusLabels = {
+        'todo': 'To Do',
+        'in-progress': 'In Progress',
+        'done': 'Done',
+      };
+
+      const messageBox = document.getElementById('message');
+      const boardSelect = document.getElementById('boardSelect');
+      const boardMeta = document.getElementById('boardMeta');
+      const kanban = document.getElementById('kanban');
+      const boardForm = document.getElementById('boardForm');
+      const taskForm = document.getElementById('taskForm');
+
+      let boards = [];
+      let activeBoardId = null;
+
+      function setMessage(text, type = 'success') {
+        if (!text) {
+          messageBox.innerHTML = '';
+          return;
+        }
+        messageBox.innerHTML = '<p class="' + type + '">' + text + '</p>';
+      }
+
+      async function fetchJSON(url, options) {
+        const res = await fetch(url, {
+          headers: { 'Content-Type': 'application/json' },
+          ...options,
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || 'Request failed');
+        }
+        return res.status === 204 ? null : res.json();
+      }
+
+      async function loadBoards() {
+        try {
+          const payload = await fetchJSON('/api/boards');
+          boards = payload.data || [];
+          boardSelect.innerHTML = '';
+
+          if (!boards.length) {
+            boardSelect.disabled = true;
+            boardMeta.textContent = 'Создайте первую доску, чтобы начать.';
+            renderKanban();
+            return;
+          }
+
+          boardSelect.disabled = false;
+          boards.forEach((board) => {
+            const option = document.createElement('option');
+            option.value = board.id;
+            option.textContent = board.name;
+            boardSelect.appendChild(option);
+          });
+
+          if (!activeBoardId || !boards.find((b) => b.id === activeBoardId)) {
+            activeBoardId = boards[0].id;
+          }
+          boardSelect.value = activeBoardId;
+          await loadBoard(activeBoardId);
+        } catch (e) {
+          setMessage(e.message, 'error');
+        }
+      }
+
+      async function loadBoard(boardId) {
+        try {
+          const payload = await fetchJSON('/api/boards/' + boardId + '?withTasks=true');
+          const board = payload.data;
+          activeBoardId = board.id;
+          boardMeta.textContent = board.description || 'Без описания';
+          renderKanban(board.tasks || []);
+          setMessage('');
+        } catch (e) {
+          renderKanban();
+          setMessage(e.message, 'error');
+        }
+      }
+
+      function renderKanban(tasks = []) {
+        kanban.innerHTML = '';
+        statuses.forEach((status) => {
+          const column = document.createElement('div');
+          column.className = 'column';
+          const header = document.createElement('h3');
+          const count = tasks.filter((t) => t.status === status).length;
+          header.innerHTML =
+            statusLabels[status] +
+            ' <span class="badge">' +
+            count +
+            '</span>';
+          column.appendChild(header);
+
+          if (!count) {
+            const empty = document.createElement('p');
+            empty.className = 'empty';
+            empty.textContent = 'Пока пусто';
+            column.appendChild(empty);
+          } else {
+            tasks
+              .filter((t) => t.status === status)
+              .forEach((task) => {
+                const card = document.createElement('div');
+                card.className = 'task';
+
+                const title = document.createElement('div');
+                title.className = 'task-title';
+                title.textContent = task.title;
+                card.appendChild(title);
+
+                if (task.description) {
+                  const desc = document.createElement('small');
+                  desc.textContent = task.description;
+                  card.appendChild(desc);
+                }
+
+                const actions = document.createElement('div');
+                actions.className = 'actions';
+
+                const select = document.createElement('select');
+                statuses.forEach((s) => {
+                  const opt = document.createElement('option');
+                  opt.value = s;
+                  opt.textContent = s;
+                  if (s === task.status) opt.selected = true;
+                  select.appendChild(opt);
+                });
+                select.addEventListener('change', () =>
+                  updateTask(task.id, { status: select.value }),
+                );
+                actions.appendChild(select);
+
+                const del = document.createElement('button');
+                del.type = 'button';
+                del.textContent = 'Удалить';
+                del.style.background = '#b91c1c';
+                del.style.color = '#fff';
+                del.addEventListener('click', () => deleteTask(task.id));
+                actions.appendChild(del);
+
+                card.appendChild(actions);
+                column.appendChild(card);
+              });
+          }
+          kanban.appendChild(column);
+        });
+      }
+
+      boardSelect.addEventListener('change', async (e) => {
+        activeBoardId = e.target.value;
+        await loadBoard(activeBoardId);
+      });
+
+      boardForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(boardForm);
+        const name = formData.get('name')?.trim();
+        const description = formData.get('description')?.trim();
+        if (!name) {
+          setMessage('Название обязательно', 'error');
+          return;
+        }
+        try {
+          const payload = await fetchJSON('/api/boards', {
+            method: 'POST',
+            body: JSON.stringify({ name, description }),
+          });
+          setMessage('Доска создана: ' + payload.data.name);
+          boardForm.reset();
+          activeBoardId = payload.data.id;
+          await loadBoards();
+        } catch (e2) {
+          setMessage(e2.message, 'error');
+        }
+      });
+
+      taskForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (!activeBoardId) {
+          setMessage('Сначала создайте доску', 'error');
+          return;
+        }
+        const formData = new FormData(taskForm);
+        const title = formData.get('title')?.trim();
+        const description = formData.get('description')?.trim();
+        const status = formData.get('status');
+        if (!title) {
+          setMessage('Заголовок обязателен', 'error');
+          return;
+        }
+        try {
+          await fetchJSON('/api/boards/' + activeBoardId + '/tasks', {
+            method: 'POST',
+            body: JSON.stringify({ title, description, status }),
+          });
+          taskForm.reset();
+          setMessage('Задача добавлена');
+          await loadBoard(activeBoardId);
+        } catch (e2) {
+          setMessage(e2.message, 'error');
+        }
+      });
+
+      async function updateTask(taskId, updates) {
+        if (!activeBoardId) return;
+        try {
+          await fetchJSON('/api/boards/' + activeBoardId + '/tasks/' + taskId, {
+            method: 'PUT',
+            body: JSON.stringify(updates),
+          });
+          await loadBoard(activeBoardId);
+          setMessage('Задача обновлена');
+        } catch (e) {
+          setMessage(e.message, 'error');
+        }
+      }
+
+      async function deleteTask(taskId) {
+        if (!activeBoardId) return;
+        if (!confirm('Удалить задачу?')) return;
+        try {
+          await fetchJSON('/api/boards/' + activeBoardId + '/tasks/' + taskId, {
+            method: 'DELETE',
+          });
+          await loadBoard(activeBoardId);
+          setMessage('Задача удалена');
+        } catch (e) {
+          setMessage(e.message, 'error');
+        }
+      }
+
+      loadBoards();
+    </script>
+  </body>
+</html>
+
